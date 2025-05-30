@@ -19,7 +19,7 @@ Simple Solitaire logic to automatic play android card game
 - copy android_bridge.dll into the android sdk tools folder
 - Connect android phone to your PC via USB cable
 - Enable Developer options and USB Debugging option on the android phone
-- fix AndroidBridgePath and AndroidBridgeLib as your folder path
+- fix AndroidBridgePath and AndroidBridgeLib in game_ui.py as your folder path
 - Install Solitaire - Classic Card Games from Google Play Store
   
 # Running
