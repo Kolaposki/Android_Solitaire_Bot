@@ -9,9 +9,9 @@ from datetime import datetime
 from game_vals import GameVals
 import cv2
 import numpy as np
-import pyautogui
 import platform
-import subprocess
+from  ctypes import *
+from PIL import Image
 
 class GameUI:
     time_delay=0.01
@@ -20,10 +20,19 @@ class GameUI:
     cxOffset = gv.cardcenterXoffset
     cyOffset = gv.cardcenterYoffset
     DecCount = 0
+    lib = None
+    Screenshot = None
+    AndroidBridgePath = 'D:/platform-tools'
+    AndroidBridgeLib = AndroidBridgePath + '/android_bridge.dll'
 
     def __init__(self):
-        time_delay=0.01
-        ##self.findImgAndClick('CollapseMenuBtn.png')
+        print('Wait for few seconds connecting phone...')
+        
+        self.lib = cdll.LoadLibrary(self.AndroidBridgeLib)
+        readyFlag = self.lib.android_bridge_init(self.AndroidBridgePath.encode('ASCII'))
+        if not readyFlag:
+            print('No devices connected.')
+            exit(0)
         
     #######################################
     ### Helper Functions
@@ -31,8 +40,8 @@ class GameUI:
 
     def focusOnEmulatorScreen(self):
         # Click inside the emulator screen to make sure it is in focus
-        cmdstr = 'adb shell input tap 360 50'
-        subprocess.run(cmdstr, shell=True)
+        cmdstr = 'shell input tap 360 50'
+        self.lib.android_bridge_cmd(cmdstr.encode('ASCII'))
 
     def GetCardsFromRegion(self, x1, y1, x2, y2, precision = 0.90, caller = '', filterForSpecialCards = False):
         #print(caller)
@@ -118,8 +127,10 @@ class GameUI:
                             tryCount += 1
 
                     if cardFound == False:
-                        print("Card not found.. Exiting")
-                        exit(0)
+                        print("Card not found.. initialization")
+                        self.gs.ui_components_to_render['top_deck'] = []
+                        self.gs.ui_components_to_render['columns'] = [1,2,3,4,5,6,7]
+                        #exit(0)
                 
                 #print(crd + " detected")
                 # TODO May be define a class for [card,pos_x,pos_y] tuple
@@ -149,16 +160,12 @@ class GameUI:
             return True
         return False
 
-    # def PressSolveBtn(self):
-    #     im = region_grabber((300, 100, 800, 300))
-    #     absolute_path = os.path.join(os.getcwd(), self.gv.imageFolderName, 'SolveBtn.png')
-    #     pos1 = imagesearcharea(absolute_path, 300, 100, 800, 300, 0.90, im)
-    #     if pos1[0] != -1:
-    #         pyautogui.moveTo(300+pos1[0]+10,100+pos1[1]+10)
-    #         pyautogui.mouseDown()
-    #         pyautogui.mouseUp()
-    #         exit(0)
-
+    def findImage(self,imageName, precision = 0.90):
+        absolute_path = os.path.join(os.getcwd(), self.gv.imageFolderName, imageName)
+        pos = self.imagesearch(absolute_path, precision)
+        if pos[0] != -1:
+            return True
+        return False    
     #######################################
     ### Main Functions
     #######################################
@@ -168,9 +175,13 @@ class GameUI:
 
         self.focusOnEmulatorScreen()
 
-        # If solve button exists, press it and exit                 
-        #self.PressSolveBtn()
-        
+        ret = self.lib.android_screen_capture()
+        if not ret:
+            print('Cannot capture screenshot of the phone.')
+
+        img = cv2.imread('D://platform-tools//screenshot.png')
+        self.Screenshot = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+                
         #############################
         # Capture top right draw deck
         #############################
@@ -197,7 +208,7 @@ class GameUI:
 
         if "top_deck" in self.gs.ui_components_to_render:
             self.gs.deck_cards_top.clear()
-            cardsRendered = self.GetCardsFromRegion(self.gv.deckArea[0],self.gv.deckArea[1],self.gv.deckArea[2],self.gv.deckArea[3], 0.97, "Capture Deck")
+            cardsRendered = self.GetCardsFromRegion(self.gv.deckArea[0],self.gv.deckArea[1],self.gv.deckArea[2],self.gv.deckArea[3], 0.96, "Capture Deck")
             for crd in cardsRendered:
                 self.gs.deck_cards_top.append(crd)
 
@@ -305,12 +316,15 @@ class GameUI:
         print(a.cards)
         #return
         
-        self.findImgAndClick('NewGame.png')
+        if self.findImage('NewGame.png'):
+            print('---------------------- Congratulation !!! --------------------')
+            return False
         if a.name == 'DrawNewCard':
             self.DecCount = self.DecCount + 1
             if self.DecCount > 8:
                 print('Game Logic has been stuck!!!')
                 self.gs.ui_components_to_render['top_deck'] = []
+                self.gs.ui_components_to_render['draw_deck'] = []
                 self.gs.ui_components_to_render['columns'] = [1,2,3,4,5,6,7]
                 ##return False
 
@@ -319,14 +333,14 @@ class GameUI:
         elif a.name == 'MoveCardToDeck':
             self.DecCount = 0
             print(a.cards[0])
-            cmdstr = 'adb shell input tap ' + str(a.cards[0][1]) + ' ' + str(a.cards[0][2])
-            subprocess.run(cmdstr, shell=True)
+            cmdstr = 'shell input tap ' + str(a.cards[0][1]) + ' ' + str(a.cards[0][2])
+            self.lib.android_bridge_cmd(cmdstr.encode('ASCII'))
 
         elif a.name == 'MoveCardToColumn':            
             self.DecCount = 0
             #print(a.cards)
-            cmdstr = 'adb shell input tap ' + str(a.cards[0][1]) + ' ' + str(a.cards[0][2])
-            subprocess.run(cmdstr, shell=True)
+            cmdstr = 'shell input tap ' + str(a.cards[0][1]) + ' ' + str(a.cards[0][2])
+            self.lib.android_bridge_cmd(cmdstr.encode('ASCII'))
 
         return True
 
@@ -343,10 +357,10 @@ class GameUI:
     def region_grabber(self, region):
         x1 = region[0]
         y1 = region[1]
-        width = region[2] - x1
-        height = region[3] - y1
+        x2 = region[2]
+        y2 = region[3]
 
-        return pyautogui.screenshot(region=(x1, y1 + 31, width, height))
+        return self.Screenshot.crop([x1, y1, x2, y2])
 
 
     '''
@@ -392,23 +406,22 @@ class GameUI:
     Usefull to avoid anti-bot monitoring while staying precise.
 
     this function doesn't search for the image, it's only ment for easy clicking on the images.
-
-    input :
-
-    image : path to the image file (see opencv imread for supported types)
-    pos : array containing the position of the top left corner of the image [x,y]
-    action : button of the mouse to activate : "left" "right" "middle", see pyautogui.click documentation for more info
-    time : time taken for the mouse to move from where it was to the new position
+    
     '''
 
 
     def click_image(self, image, pos, action, timestamp, dclick,offset=5):
         img = cv2.imread(image)    
         height, width, channels = img.shape
-        cmdstr = 'adb shell input tap ' + str(pos[0] + int(self.r(width / 2, offset))) + ' ' + str(pos[1] + int(self.r(height / 2, offset)))
-        subprocess.run(cmdstr, shell=True)
+        cmdstr = 'shell input tap ' + str(pos[0] + int(self.r(width / 2, offset))) + ' ' + str(pos[1] + int(self.r(height / 2, offset)))
+        self.lib.android_bridge_cmd(cmdstr.encode('ASCII'))
 
+        ret = self.lib.android_screen_capture()
+        if not ret:
+            print('Cannot capture screenshot of the phone.')
 
+        img = cv2.imread('D://platform-tools//screenshot.png')
+        self.Screenshot = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
         
     '''
     Searchs for an image on the screen
@@ -426,24 +439,14 @@ class GameUI:
 
 
     def imagesearch(self, image, precision=0.8):
-        #print("is_retina: " + str(is_retina))
-        im = pyautogui.screenshot()
-        #im.save('testDebugImg1.png')
-        #im.save('testarea.png') # useful for debugging purposes, this will save the captured region as "testarea.png"
+        im = self.Screenshot
         img_rgb = np.array(im)
         img_gray = cv2.cvtColor(img_rgb, cv2.COLOR_BGR2GRAY)
         template = cv2.imread(image, 0)
-        #np.set_printoptions(threshold=np.inf, precision=5, linewidth=np.inf)
-        #f1 = open('test.bin','w')
-        #f1.write(np.array2string(template))
-        #f1.close()
-        #print("printing template\n")
-        #print(template)
         template.shape[::-1]
 
         res = cv2.matchTemplate(img_gray, template, cv2.TM_CCOEFF_NORMED)
         min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(res)
-        #print("min_val:" + str(min_val) + ", max_val:" + str(max_val) + ",min_loc" + str(min_loc) + ",max_loc:" + str(max_loc))
         if max_val < precision:
             return [-1, -1]
         return max_loc

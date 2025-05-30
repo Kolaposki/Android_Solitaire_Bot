@@ -18,8 +18,9 @@ while 1:
     print("Action: " + next_action.name)
     print(next_action.cards)
     
-    good = gui.ProcessAction(next_action)
-        
+    if not gui.ProcessAction(next_action):
+        break
+    
     escape = keyboard.is_pressed("escape")
     if escape == 1:
         break
