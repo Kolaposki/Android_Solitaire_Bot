@@ -20,7 +20,7 @@ Simple Solitaire logic to automatic play android card game
 - Connect android phone to your PC via USB cable
 - Enable Developer options and USB Debugging option on the android phone
 - fix AndroidBridgePath and AndroidBridgeLib in game_ui.py as your folder path
-- Install Solitaire - Classic Card Games from Google Play Store
+- Install Solitaire - Classic Card Games from Google Play Store(https://play.google.com/store/apps/details?id=com.mobilityware.solitaire&hl=en)
   
 # Running
 - Make sure your android phone screen resolution is 720 x 1600
