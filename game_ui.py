@@ -34,6 +34,8 @@ class GameUI:
             print('No devices connected.')
             exit(0)
         
+        cmdstr = ' shell monkey -p com.smilerlee.klondike -c android.intent.category.LAUNCHER 1'
+        self.lib.android_bridge_cmd(cmdstr.encode('ASCII'))
     #######################################
     ### Helper Functions
     #######################################
