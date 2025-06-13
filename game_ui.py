@@ -2,6 +2,7 @@ import time
 import os
 import sys
 import random
+import subprocess
 from Card import Card
 from GameState import GameState
 from Action import Action
@@ -15,18 +16,20 @@ from PIL import Image
 
 class GameUI:
     time_delay=0.01
-    gv = GameVals()
     gs = GameState()
-    cxOffset = gv.cardcenterXoffset
-    cyOffset = gv.cardcenterYoffset
     DecCount = 0
     lib = None
     Screenshot = None
-    AndroidBridgePath = 'D:/platform-tools'
-    AndroidBridgeLib = AndroidBridgePath + '/android_bridge.dll'
+    AndroidBridgePath = 'platform-tools'
+    AndroidBridgeLib = os.path.join(AndroidBridgePath, 'android_bridge.dll')
 
     def __init__(self):
         print('Wait for few seconds connecting phone...')
+
+        width, height = self.get_screen_resolution()
+        self.gv = GameVals(width, height)
+        self.cxOffset = self.gv.cardcenterXoffset
+        self.cyOffset = self.gv.cardcenterYoffset
         
         self.lib = cdll.LoadLibrary(self.AndroidBridgeLib)
         readyFlag = self.lib.android_bridge_init(self.AndroidBridgePath.encode('ASCII'))
@@ -39,6 +42,27 @@ class GameUI:
     #######################################
     ### Helper Functions
     #######################################
+
+    def get_screen_resolution(self):
+        try:
+            adb_path = os.path.join(self.AndroidBridgePath, 'adb')
+            if platform.system() == 'Windows':
+                adb_path += '.exe'
+            
+            if not os.path.exists(adb_path):
+                adb_path = 'adb'
+
+            result = subprocess.check_output([adb_path, 'shell', 'wm', 'size'])
+            output = result.decode('utf-8').strip()
+            size_str = output.split(': ')[1]
+            width, height = map(int, size_str.split('x'))
+            print(f"Detected screen resolution: {width}x{height}")
+            return width, height
+        except (FileNotFoundError, subprocess.CalledProcessError, IndexError, ValueError) as e:
+            print(f"Error getting screen resolution: {e}")
+            print("Please ensure 'adb' is in your PATH or AndroidBridgePath is set correctly.")
+            print("Defaulting to 720x1600. The bot may not work correctly.")
+            return 720, 1600
 
     def focusOnEmulatorScreen(self):
         # Click inside the emulator screen to make sure it is in focus
